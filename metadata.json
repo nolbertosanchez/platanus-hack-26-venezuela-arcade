@@ -1,5 +1,5 @@
 {
-  "game_name": "Platanus Hack: Caracas Brick Breaker",
-  "description": "Batalla campal por romper la mayor cantidad de ladrillos",
-  "player_mode": "two_player"
+  "game_name": "El Silbón: Noche en el Llano",
+  "description": "Corre por el llano bajo la tormenta con el silbido invertido: fuerte significa que esta lejos, pero cuando el silbido es tenue ¡ya esta atras de ti!; roba sus bolsas de huesos, ahuyentalo con la linterna de kerosene y esquiva su embestida saltando.",
+  "player_mode": "single_player"
 }
