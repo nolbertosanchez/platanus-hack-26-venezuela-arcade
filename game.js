@@ -426,10 +426,10 @@ function resetRun(toMenu) {
   S.dist = 0; S.speed = 255; S.rph = 0; S.wx = 0; S.runT = 0;
   S.paralyses = 0; S.mudT = 0; S.thr = 0;
   S.dogCharges = 0; S.dogFx = null; S.dogHint = false; S.swoopHold = 0;
-  S.dogPlan = [];
-  planDogs();
   S.level = 0; S.night = 1; S.levelAt = 0; S.dawned = false; S.dawnT = 0;
   S.lvFx = null;
+  S.dogPlan = [];
+  planDogs();
   S.speedHint = false;
   S.player = { y: GY, vy: 0, ground: true, duck: false };
   S.face = 1; S.faceT = 0;
