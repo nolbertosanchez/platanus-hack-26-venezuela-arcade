@@ -21,10 +21,10 @@ const COL = {
 
 /* La noche avanza: 4 niveles por distancia (m). AMANECER termina en victoria. */
 const LEVELS = [
-  { name: 'ANOCHER', at: 0, spawn: 1.0, dur: 0.88 },
-  { name: 'MEDIA NOCHE', at: 900, spawn: 1.22, dur: 0.82 },
-  { name: 'MADRUGADA', at: 1800, spawn: 1.45, dur: 0.74 },
-  { name: 'AMANECER', at: 2700, spawn: 1.7, dur: 0.66 }
+  { name: 'ANOCHER', at: 0, spawn: 1.0, dur: 0.88, note: '' },
+  { name: 'MEDIA NOCHE', at: 900, spawn: 1.3, dur: 0.82, note: 'EL SILENCIO SE ACORTA' },
+  { name: 'MADRUGADA', at: 1800, spawn: 1.45, dur: 0.74, note: 'OBSTACULOS SIN PIEDAD' },
+  { name: 'AMANECER', at: 2700, spawn: 1.7, dur: 0.66, note: 'RESISTE HASTA EL ALBA' }
 ];
 const NIGHT_LEN = 3600;          // meters for dawn
 const NIGHT_NAMES = ['I', 'II', 'III', 'IV', 'V', 'VI'];
@@ -414,6 +414,7 @@ function resetRun(toMenu) {
   S.paralyses = 0; S.mudT = 0; S.thr = 0;
   S.dogs = 0; S.dogFx = null;
   S.level = 0; S.night = 1; S.levelAt = 0; S.dawned = false; S.dawnT = 0;
+  S.lvFx = null;
   S.speedHint = false;
   S.player = { y: GY, vy: 0, ground: true, duck: false };
   S.face = 1; S.faceT = 0;
@@ -436,6 +437,8 @@ function startRun() {
   scene.menuT.forEach(o => o.setVisible(false));
   scene.overT.forEach(o => o.setVisible(false));
   scene.hudT.forEach(o => o.setVisible(true));
+  scene.tLvFx.setVisible(false);
+  scene.tLvFx2.setVisible(false);
 }
 
 function gameOver() {
@@ -576,8 +579,10 @@ function levelUpdate(dt) {
   if (S.level < li) {
     if (rel >= LEVELS[S.level + 1].at) {
       S.level++;
+      S.lvFx = { t: 0 };
       SFX.levelUp();
-      showHint('\u00b7 ' + LEVELS[S.level].name + ' \u00b7', 2.4);
+      scene.tLvFx.setText(LEVELS[S.level].name).setVisible(true);
+      scene.tLvFx2.setText(LEVELS[S.level].note).setVisible(true);
     }
   } else if (rel >= NIGHT_LEN && !S.dawned) {
     dawnStart();
@@ -1173,12 +1178,13 @@ function buildTexts(sc) {
   sc.menuT = [
     T(W / 2, 130, 'EL SILBON', '56px', '#e8d9b0', { fontStyle: 'bold' }).setOrigin(0.5),
     T(W / 2, 180, 'NOCHE EN EL LLANO', '17px', '#9a86c8').setOrigin(0.5),
-    T(W / 2, 224, '"Si el silbido suena LEJOS... ya esta ENCIMA de ti."', '13px', '#b7a6e0').setOrigin(0.5),
-    T(W / 2, 262, '[W/\u2191] Saltar   [S/\u2193] Agacharse   [D/\u2192] Acelerar   [A/\u2190] Frenar', '12px', '#cfc4a0').setOrigin(0.5),
-    T(W / 2, 283, '[U] Linterna   [I] Perros de agua   \u00b7   Sobrevive la noche y vera amanecer', '11px', '#8f86ad').setOrigin(0.5),
-    T(W / 2, 304, 'Corre, roba sus bolsas de huesos y sigue corriendo hasta el alba.', '10px', '#8f86ad').setOrigin(0.5),
+    T(W / 2, 214, '\u266A  USA AUDIFONOS \u00b7 ACTIVA EL AUDIO \u00b7 EL SILBIDO ES LA SENAL  \u266A', '13px', '#ffd27a', { fontStyle: 'bold' }).setOrigin(0.5),
+    T(W / 2, 252, '"Si el silbido suena LEJOS... ya esta ENCIMA de ti."', '13px', '#b7a6e0').setOrigin(0.5),
+    T(W / 2, 284, '[W/\u2191] Saltar   [S/\u2193] Agacharse   [D/\u2192] Acelerar   [A/\u2190] Frenar', '12px', '#cfc4a0').setOrigin(0.5),
+    T(W / 2, 305, '[U] Linterna   [I] Perros de agua   \u00b7   Sobrevive la noche y vera amanecer', '11px', '#8f86ad').setOrigin(0.5),
+    T(W / 2, 326, 'Cuatro fases de noche; al terminar AMANECER, gan\u00e1s.', '10px', '#8f86ad').setOrigin(0.5),
     T(W / 2, 430, 'PRESIONA ENTER / CLIC PARA CORRER', '16px', '#ffd27a', { fontStyle: 'bold' }).setOrigin(0.5),
-    T(W / 2, 556, '100% PROCEDURAL · 0 ASSETS · <50KB', '10px', '#6f6a86').setOrigin(0.5),
+    T(W / 2, 556, '100% PROCEDURAL \u00b7 0 ASSETS \u00b7 <50KB', '10px', '#6f6a86').setOrigin(0.5),
     T(W - 10, 10, best ? 'MEJOR: ' + best : '', '11px', '#7d7396').setOrigin(1, 0)
   ];
   // HUD
@@ -1189,7 +1195,9 @@ function buildTexts(sc) {
     sc.tL2 = T(32, 22, 'KEROSENE', '8px', '#9a8fb0'),
     sc.tHint = T(W / 2, 564, '', '11px', '#ffd9a0').setOrigin(0.5),
     sc.tState = T(W / 2, 10, '', '13px', '#9a86c8', { fontStyle: 'bold' }).setOrigin(0.5),
-    sc.tLvl = T(W / 2, 44, '', '9px', '#8f86ad').setOrigin(0.5, 0)
+    sc.tLvl = T(W / 2, 44, '', '9px', '#8f86ad').setOrigin(0.5, 0),
+    sc.tLvFx = T(W / 2, 236, '', '46px', '#e8d9b0', { fontStyle: 'bold' }).setOrigin(0.5).setVisible(false),
+    sc.tLvFx2 = T(W / 2, 284, '', '14px', '#9a86c8').setOrigin(0.5).setVisible(false)
   ];
   sc.hudT.forEach(o => o.setVisible(false));
   // floating score popups pool
@@ -1228,7 +1236,8 @@ function drawWorld(dt) {
     ? { c: 0xd88a50, a: 0.10 + 0.18 * Math.min(1, S.dawnT / 3) }
     : SKY[S.level];
   if (sk) {
-    g.fillStyle(sk.c, sk.a);
+    const fadeIn = S.lvFx ? Math.min(1, S.lvFx.t / 0.8) : 1;
+    g.fillStyle(sk.c, sk.a * fadeIn);
     g.fillRect(0, 0, W, H);
   }
 
@@ -1490,6 +1499,23 @@ function drawFx(dt) {
       g.lineBetween(lx, ly, lx + 90, ly);
     }
   }
+  // level-up ceremony: expanding ring + name reveal
+  if (S.lvFx) {
+    const lf = S.lvFx;
+    lf.t += dt;
+    if (lf.t > 2.2) {
+      S.lvFx = null;
+      scene.tLvFx.setVisible(false);
+      scene.tLvFx2.setVisible(false);
+    } else {
+      const a = Math.min(1, lf.t / 0.18) * (lf.t < 1.4 ? 1 : Math.max(0, 1 - (lf.t - 1.4) / 0.8));
+      scene.tLvFx.setAlpha(a);
+      scene.tLvFx2.setAlpha(a);
+      scene.tLvFx.setScale(0.8 + Math.min(0.2, lf.t * 0.25));
+      g.lineStyle(3, 0x9a86c8, (1 - lf.t / 2.2) * 0.45);
+      g.strokeCircle(W / 2, 250, 50 + lf.t * 240);
+    }
+  }
   // dog pack released: water-dog silhouettes rushing left, myth-true rescue
   if (S.dogFx) {
     const df = S.dogFx;
@@ -1523,8 +1549,8 @@ function drawHud(dt) {
   const g = G.hudG;
   g.clear();
   if (S.mode === 'menu') {
-    const m = scene.menuT[5];
-    m.setAlpha(0.55 + 0.45 * Math.abs(Math.sin(S.t * 2.4)));
+    scene.menuT[8].setAlpha(0.55 + 0.45 * Math.abs(Math.sin(S.t * 2.4)));
+    scene.menuT[2].setAlpha(0.7 + 0.3 * Math.abs(Math.sin(S.t * 1.7)));
     return;
   }
   if (S.mode === 'over') {
