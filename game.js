@@ -630,8 +630,8 @@ function dawnUpdate(dt) {
 
 /* ---------------- Threat AI: the inverted whistle cycle ------------------------ */
 function farDurNow() {
-  // silence window: shrinks per level and with distance
-  return R(4.2, 6) * LEVELS[S.level].dur - clamp(S.dist / 3000, 0, 1) * 1.8;
+  // silence window: shrinks per level and with distance, but never below a fair floor
+  return Math.max(2.2, R(4.2, 6) * LEVELS[S.level].dur - clamp(S.dist / 3000, 0, 1) * 1.8);
 }
 function threatUpdate(dt) {
   const th = S.threat, diff = clamp(S.dist / 3000, 0, 1);
@@ -639,7 +639,7 @@ function threatUpdate(dt) {
 
   if (!th.near) {
     // myth pressure: braking invites him closer, running away pulls him back a bit
-    th.farT += dt * (S.thr < 0 ? 1.3 : S.thr > 0 ? 0.92 : 1);
+    th.farT += dt * (S.thr < 0 ? 1.18 : S.thr > 0 ? 0.92 : 1);
     // ambient distant flicker of his silhouette
     if (th.ambShow > 0) th.ambShow -= dt;
     else {
@@ -666,7 +666,7 @@ function threatUpdate(dt) {
     if (th.swoop) {
       const sw = th.swoop;
       sw.t += dt;
-      sw.x += (S.speed * 1.2 + 300) * (S.thr < 0 ? 1.22 : 1) * dt;
+      sw.x += (S.speed * 1.2 + 300) * (S.thr < 0 ? 1.12 : 1) * dt;
       sw.y = GY + 6 - Math.abs(Math.sin(sw.t * 9)) * 4;
       if (!sw.resolved && sw.x > PX - 30) {
         sw.resolved = true;
@@ -683,10 +683,10 @@ function threatUpdate(dt) {
       }
       if (sw.x > W + 160) th.swoop = null;
     }
-    // far phase ends -> he is RIGHT BEHIND YOU
-    if (th.farT >= th.farDur) {
+    // far phase ends -> he is RIGHT BEHIND YOU (never mid-charge: that would be unfair)
+    if (th.farT >= th.farDur && !th.swoop) {
       th.near = true;
-      th.winMax = 1.15 - 0.43 * diff - 0.06 * S.level;
+      th.winMax = Math.max(0.7, 1.15 - 0.28 * diff - 0.05 * S.level);
       th.winT = th.winMax;
       th.swoop = null;
       SFX.whistle(true);
