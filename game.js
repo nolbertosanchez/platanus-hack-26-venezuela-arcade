@@ -426,6 +426,8 @@ function resetRun(toMenu) {
   S.dist = 0; S.speed = 255; S.rph = 0; S.wx = 0; S.runT = 0;
   S.paralyses = 0; S.mudT = 0; S.thr = 0;
   S.dogCharges = 0; S.dogFx = null; S.dogHint = false; S.swoopHold = 0;
+  S.dogPlan = [];
+  planDogs();
   S.level = 0; S.night = 1; S.levelAt = 0; S.dawned = false; S.dawnT = 0;
   S.lvFx = null;
   S.speedHint = false;
@@ -584,13 +586,34 @@ function dyingUpdate(dt) {
 function overUpdate(dt) { S.rph += dt; }
 
 /* ---------------- Night progression: levels, dawn, next night ------------------- */
+/* Dog bonus plan: at most 4 spawns per level, each at a random distance (15%-90% of the span). */
+function planDogs() {
+  S.dogPlan = [];
+  const li = LEVELS.length - 1;
+  const span = (S.level < li ? LEVELS[S.level + 1].at : NIGHT_LEN) - LEVELS[S.level].at;
+  const n = 2 + ((Math.random() * 3) | 0);   // 2..4
+  for (let i = 0; i < n; i++) S.dogPlan.push(R(0.15, 0.9) * span);
+  S.dogPlan.sort((a, b) => a - b);
+}
+function spawnDog() {
+  S.picks.push({ t: 'dog', x: W + R(90, 220), bob: R(0, 6.28) });
+  if (!S.dogHint) {
+    S.dogHint = true;
+    showHint('\u00a1SALTA! EL PERRO ESTA ARRIBA', 2.5);
+  }
+}
 function levelUpdate(dt) {
   if (S.mode !== 'run') return;
   const li = LEVELS.length - 1;
   const rel = S.dist - S.levelAt;
+  while (S.dogPlan.length && rel >= S.dogPlan[0]) {
+    S.dogPlan.shift();
+    if (S.dogCharges < 6) spawnDog();
+  }
   if (S.level < li) {
     if (rel >= LEVELS[S.level + 1].at) {
       S.level++;
+      planDogs();
       S.lvFx = { t: 0 };
       SFX.levelUp();
       scene.tLvFx.setText(LEVELS[S.level].name).setVisible(true);
@@ -637,6 +660,7 @@ function dawnUpdate(dt) {
     S.levelAt = S.dist;
     S.dawned = false;
     S.mode = 'run';
+    planDogs();
     S.kero = Math.min(100, S.kero + 40);
     SFX.setRain(0.055, 0.8);
     showHint('NOCHE ' + (NIGHT_NAMES[S.night - 1] || S.night) + ' \u00b7 MAS RAPIDA Y MAS CERCA', 3);
@@ -846,16 +870,8 @@ function obstUpdate(dt) {
     S.pickT -= dt;
     if (S.pickT <= 0) {
       S.pickT = R(2.1, 3.4) - 0.7 * diff;
-      if (S.dogCharges < 6 && Math.random() < 0.2) {
-        S.picks.push({ t: 'dog', x: W + R(90, 220), bob: R(0, 6.28) });
-        if (!S.dogHint) {
-          S.dogHint = true;
-          showHint('\u00a1SALTA! EL PERRO ESTA ARRIBA', 2.5);
-        }
-      } else {
-        const isKero = S.kero < 25 || Math.random() < (S.kero < 40 ? 0.55 : 0.28);
-        S.picks.push({ t: isKero ? 'kero' : 'bag', x: W + R(90, 220), bob: R(0, 6.28) });
-      }
+      const isKero = S.kero < 25 || Math.random() < (S.kero < 40 ? 0.55 : 0.28);
+      S.picks.push({ t: isKero ? 'kero' : 'bag', x: W + R(90, 220), bob: R(0, 6.28) });
     }
   }
 
