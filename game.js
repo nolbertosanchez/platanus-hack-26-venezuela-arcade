@@ -693,6 +693,8 @@ function threatUpdate(dt) {
       SFX.setRain(0.022, 0.5);
       S.threat.whistlesSeen++;
       if (S.threat.whistlesSeen === 1) showHint('¡SILBIDO CASI MUDO! PULSA [U] YA', 2.2);
+      // lantern already up when he arrives: it burns him (holding is a valid stance, same kero cost)
+      if (held.P1_1 || held.P2_1) attemptLantern();
     }
   } else {
     // near phase: act within the window or die. Terror climbs while he's close.
