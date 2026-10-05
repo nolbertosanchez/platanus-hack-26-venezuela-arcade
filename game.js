@@ -425,7 +425,7 @@ function resetRun(toMenu) {
   S.mode = toMenu ? 'menu' : 'run';
   S.dist = 0; S.speed = 255; S.rph = 0; S.wx = 0; S.runT = 0;
   S.paralyses = 0; S.mudT = 0; S.thr = 0;
-  S.dogCharges = 0; S.dogFx = null;
+  S.dogCharges = 0; S.dogFx = null; S.dogHint = false;
   S.level = 0; S.night = 1; S.levelAt = 0; S.dawned = false; S.dawnT = 0;
   S.lvFx = null;
   S.speedHint = false;
@@ -838,6 +838,10 @@ function obstUpdate(dt) {
       S.pickT = R(2.1, 3.4) - 0.7 * diff;
       if (S.dogCharges < 6 && Math.random() < 0.2) {
         S.picks.push({ t: 'dog', x: W + R(90, 220), bob: R(0, 6.28) });
+        if (!S.dogHint) {
+          S.dogHint = true;
+          showHint('\u00a1SALTA! EL PERRO ESTA ARRIBA', 2.5);
+        }
       } else {
         const isKero = S.kero < 25 || Math.random() < (S.kero < 40 ? 0.55 : 0.28);
         S.picks.push({ t: isKero ? 'kero' : 'bag', x: W + R(90, 220), bob: R(0, 6.28) });
@@ -870,7 +874,8 @@ function obstUpdate(dt) {
     k.x -= S.speed * mul * dt;
     k.bob += dt * 3;
     if (k.x < -60) { S.picks.splice(i, 1); continue; }
-    const by = GY - 24 + Math.sin(k.bob) * 4;
+    // dog bonus floats at jump height: standing players cannot reach it
+    const by = k.t === 'dog' ? GY - 88 + Math.sin(k.bob) * 4 : GY - 24 + Math.sin(k.bob) * 4;
     if (ov(pb.x, pb.y, pb.w, pb.h, k.x - 9, by - 14, 18, 20)) {
       if (k.t === 'bag') { S.bags++; S.bagPts += 100; SFX.pickup(); popScore('+100', '#ffd27a'); }
       else if (k.t === 'dog') { S.dogCharges = Math.min(6, S.dogCharges + 3); SFX.pickup(); popScore('+PERRO x3', '#9fd8ff'); }
@@ -905,7 +910,7 @@ function drawEnts() {
     }
   }
   for (const k of S.picks) {
-    const by = GY - 24 + Math.sin(k.bob) * 4;
+    const by = k.t === 'dog' ? GY - 88 + Math.sin(k.bob) * 4 : GY - 24 + Math.sin(k.bob) * 4;
     if (k.t === 'bag') {
       g.fillStyle(COL.bag, 1);
       g.fillEllipse(k.x, by, 20, 16);
