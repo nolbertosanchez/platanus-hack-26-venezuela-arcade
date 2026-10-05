@@ -499,7 +499,7 @@ function menuUpdate(dt) {
 function runUpdate(dt) {
   const p = S.player;
   S.runT += dt;
-  const diff = clamp(S.dist / 3000, 0, 1);
+  const diff = diffNow();
   S.speed = (255 + 185 * diff) * (1 + 0.15 * (S.night - 1));
 
   // --- arcade input: throttle / jump / duck / fast-fall ---
@@ -613,7 +613,10 @@ function dawnStart() {
   SFX.droneOff();
   SFX.levelUp();
   SFX.setRain(0.02, 1.2);
-  showHint('¡AMANECIO! +2000', 4);
+  // full ceremony: you survived the night
+  S.lvFx = { t: 0 };
+  scene.tLvFx.setText('AMANECIO').setVisible(true);
+  scene.tLvFx2.setText('SOBREVIVISTE LA NOCHE ' + (NIGHT_NAMES[S.night - 1] || S.night) + '  \u00b7  +2000').setVisible(true);
 }
 
 function dawnUpdate(dt) {
@@ -643,10 +646,14 @@ function dawnUpdate(dt) {
 /* ---------------- Threat AI: the inverted whistle cycle ------------------------ */
 function farDurNow() {
   // silence window: shrinks per level and with distance, but never below a fair floor
-  return Math.max(2.2, R(4.2, 6) * LEVELS[S.level].dur - clamp(S.dist / 3000, 0, 1) * 1.8);
+  return Math.max(2.2, R(4.2, 6) * LEVELS[S.level].dur - diffNow() * 1.8);
+}
+/* Difficulty ramps per NIGHT, not per total run: each dawn rebases it. */
+function diffNow() {
+  return clamp((S.dist - S.levelAt) / 3000, 0, 1);
 }
 function threatUpdate(dt) {
-  const th = S.threat, diff = clamp(S.dist / 3000, 0, 1);
+  const th = S.threat, diff = diffNow();
   if (th.recoilT > 0) th.recoilT -= dt;
   if (S.swoopHold > 0) S.swoopHold -= dt;
 
@@ -820,7 +827,7 @@ function triggerParalysis() {
 }
 
 function obstUpdate(dt) {
-  const diff = clamp(S.dist / 3000, 0, 1);
+  const diff = diffNow();
   const mul = S.slowT > 0 ? 0.55 : 1;
 
   if (S.fear >= 100 && S.mode === 'run') triggerParalysis();
@@ -1546,7 +1553,7 @@ function drawFx(dt) {
       scene.tLvFx.setAlpha(a);
       scene.tLvFx2.setAlpha(a);
       scene.tLvFx.setScale(0.8 + Math.min(0.2, lf.t * 0.25));
-      g.lineStyle(3, 0x9a86c8, (1 - lf.t / 2.2) * 0.45);
+      g.lineStyle(3, S.mode === 'dawn' ? 0xffc46a : 0x9a86c8, (1 - lf.t / 2.2) * 0.45);
       g.strokeCircle(W / 2, 250, 50 + lf.t * 240);
     }
   }
