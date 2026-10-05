@@ -19,6 +19,16 @@ const COL = {
   kero: 0xc26a2a, bark: 0x241a12, mud: 0x2e1d12, mudTop: 0x452b18
 };
 
+/* La noche avanza: 4 niveles por distancia (m). AMANECER termina en victoria. */
+const LEVELS = [
+  { name: 'ANOCHER', at: 0, spawn: 1.0, dur: 0.88 },
+  { name: 'MEDIA NOCHE', at: 900, spawn: 1.22, dur: 0.82 },
+  { name: 'MADRUGADA', at: 1800, spawn: 1.45, dur: 0.74 },
+  { name: 'AMANECER', at: 2700, spawn: 1.7, dur: 0.66 }
+];
+const NIGHT_LEN = 3600;          // meters for dawn
+const NIGHT_NAMES = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+
 const R = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const ov = (ax, ay, aw, ah, bx, by, bw, bh) =>
@@ -365,7 +375,10 @@ class Main extends Phaser.Scene {
 function resetRun(toMenu) {
   S.mode = toMenu ? 'menu' : 'run';
   S.dist = 0; S.speed = 255; S.rph = 0; S.wx = 0; S.runT = 0;
-  S.paralyses = 0; S.mudT = 0;
+  S.paralyses = 0; S.mudT = 0; S.thr = 0;
+  S.dogs = 0; S.dogFx = null;
+  S.level = 0; S.night = 1; S.levelAt = 0; S.dawned = false; S.dawnT = 0;
+  S.speedHint = false;
   S.player = { y: GY, vy: 0, ground: true, duck: false };
   S.face = 1; S.faceT = 0;
   S.fear = 0; S.kero = 100; S.bags = 0; S.bagPts = 0; S.repPts = 0; S.svPts = 0;
@@ -436,7 +449,8 @@ function runUpdate(dt) {
   const diff = clamp(S.dist / 3000, 0, 1);
   S.speed = 255 + 185 * diff;
 
-  // --- arcade input: jump / duck / fast-fall ---
+  // --- arcade input: throttle / jump / duck / fast-fall ---
+  S.thr = (held.P1_R || held.P2_R) ? 1 : (held.P1_L || held.P2_L) ? -1 : 0;
   if ((PR.P1_U || PR.P2_U) && p.ground) {
     p.vy = -640; p.ground = false; p.duck = false; SFX.step();
   }
@@ -459,9 +473,10 @@ function runUpdate(dt) {
   if (PR.P1_L || PR.P2_L) attemptLantern();
   if (S.faceT > 0) { S.faceT -= dt; if (S.faceT <= 0) S.face = 1; }
 
-  // --- world scroll ---
+  // --- world scroll (throttle: accelerate for meters, brake to breathe) ---
   let mul = 1;
   if (S.slowT > 0) { S.slowT -= dt; mul = 0.55; }
+  mul *= S.thr > 0 ? 1.45 : S.thr < 0 ? 0.55 : 1;
   if (S.invT > 0) S.invT -= dt;
   const sp = S.speed * mul;
   S.wx += sp * dt;
@@ -473,6 +488,10 @@ function runUpdate(dt) {
   if (p.ground) {
     S.stepT -= dt;
     if (S.stepT <= 0) { S.stepT = 0.3; SFX.step(); }
+  }
+  if (!S.speedHint && S.runT > 12) {
+    S.speedHint = true;
+    showHint('MANTEN [D] PARA ACELERAR  ·  [A] PARA FRENAR', 3);
   }
   scrollLayer(G.palmFar, sp * 0.16 * dt, 260, 460, 0.55);
   scrollLayer(G.palmNear, sp * 0.30 * dt, 240, 430, 1);
@@ -516,7 +535,8 @@ function threatUpdate(dt) {
   if (th.recoilT > 0) th.recoilT -= dt;
 
   if (!th.near) {
-    th.farT += dt;
+    // myth pressure: braking invites him closer, running away pulls him back a bit
+    th.farT += dt * (S.thr < 0 ? 1.3 : S.thr > 0 ? 0.92 : 1);
     // ambient distant flicker of his silhouette
     if (th.ambShow > 0) th.ambShow -= dt;
     else {
@@ -543,7 +563,7 @@ function threatUpdate(dt) {
     if (th.swoop) {
       const sw = th.swoop;
       sw.t += dt;
-      sw.x += (S.speed * 1.2 + 300) * dt;
+      sw.x += (S.speed * 1.2 + 300) * (S.thr < 0 ? 1.22 : 1) * dt;
       sw.y = GY + 6 - Math.abs(Math.sin(sw.t * 9)) * 4;
       if (!sw.resolved && sw.x > PX - 30) {
         sw.resolved = true;
@@ -569,7 +589,7 @@ function threatUpdate(dt) {
       SFX.whistle(true);
       SFX.setRain(0.022, 0.5);
       S.threat.whistlesSeen++;
-      if (S.threat.whistlesSeen === 1) showHint('¡SILBIDO CASI MUDO! PULSA ← YA', 2.2);
+      if (S.threat.whistlesSeen === 1) showHint('¡SILBIDO CASI MUDO! PULSA [U] YA', 2.2);
     }
   } else {
     // near phase: act within the window or die. Terror climbs while he's close.
@@ -1013,8 +1033,9 @@ function buildTexts(sc) {
     T(W / 2, 130, 'EL SILBON', '56px', '#e8d9b0', { fontStyle: 'bold' }).setOrigin(0.5),
     T(W / 2, 180, 'NOCHE EN EL LLANO', '17px', '#9a86c8').setOrigin(0.5),
     T(W / 2, 224, '"Si el silbido suena LEJOS... ya esta ENCIMA de ti."', '13px', '#b7a6e0').setOrigin(0.5),
-    T(W / 2, 268, '[W / ↑] Saltar    [S / ↓] Agacharse    [A / ←] Linterna de kerosene', '12px', '#cfc4a0').setOrigin(0.5),
-    T(W / 2, 292, 'Corre, roba sus bolsas de huesos y sobrevive a la tormenta.', '11px', '#8f86ad').setOrigin(0.5),
+    T(W / 2, 262, '[W/\u2191] Saltar   [S/\u2193] Agacharse   [D/\u2192] Acelerar   [A/\u2190] Frenar', '12px', '#cfc4a0').setOrigin(0.5),
+    T(W / 2, 283, '[U] Linterna   [I] Perros de agua   \u00b7   Sobrevive la noche y vera amanecer', '11px', '#8f86ad').setOrigin(0.5),
+    T(W / 2, 304, 'Corre, roba sus bolsas de huesos y sigue corriendo hasta el alba.', '10px', '#8f86ad').setOrigin(0.5),
     T(W / 2, 430, 'PRESIONA ENTER / CLIC PARA CORRER', '16px', '#ffd27a', { fontStyle: 'bold' }).setOrigin(0.5),
     T(W / 2, 556, '100% PROCEDURAL · 0 ASSETS · <50KB', '10px', '#6f6a86').setOrigin(0.5),
     T(W - 10, 10, best ? 'MEJOR: ' + best : '', '11px', '#7d7396').setOrigin(1, 0)
