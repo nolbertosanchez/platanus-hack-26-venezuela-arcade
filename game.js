@@ -590,9 +590,10 @@ function overUpdate(dt) { S.rph += dt; }
 function planDogs() {
   S.dogPlan = [];
   const li = LEVELS.length - 1;
-  const span = (S.level < li ? LEVELS[S.level + 1].at : NIGHT_LEN) - LEVELS[S.level].at;
+  const a = LEVELS[S.level].at;
+  const span = (S.level < li ? LEVELS[S.level + 1].at : NIGHT_LEN) - a;
   const n = 2 + ((Math.random() * 3) | 0);   // 2..4
-  for (let i = 0; i < n; i++) S.dogPlan.push(R(0.15, 0.9) * span);
+  for (let i = 0; i < n; i++) S.dogPlan.push(a + R(0.15, 0.9) * span);
   S.dogPlan.sort((a, b) => a - b);
 }
 function spawnDog() {
