@@ -425,7 +425,7 @@ function resetRun(toMenu) {
   S.mode = toMenu ? 'menu' : 'run';
   S.dist = 0; S.speed = 255; S.rph = 0; S.wx = 0; S.runT = 0;
   S.paralyses = 0; S.mudT = 0; S.thr = 0;
-  S.dogs = 0; S.dogFx = null;
+  S.dogCharges = 0; S.dogFx = null;
   S.level = 0; S.night = 1; S.levelAt = 0; S.dawned = false; S.dawnT = 0;
   S.lvFx = null;
   S.speedHint = false;
@@ -522,9 +522,8 @@ function runUpdate(dt) {
     if (p.y >= GY) { p.y = GY; p.vy = 0; p.ground = true; SFX.step(); }
   }
 
-  // --- lantern turn (body in drawChars) + dogs of water ---
+  // --- lantern turn (body in drawChars); dogs are companions, they act on their own ---
   if (PR.P1_1 || PR.P2_1) attemptLantern();
-  if (PR.P1_2 || PR.P2_2) releaseDogs();
   if (S.faceT > 0) { S.faceT -= dt; if (S.faceT <= 0) S.face = 1; }
 
   // --- world scroll (throttle: accelerate for meters, brake to breathe) ---
@@ -708,6 +707,7 @@ function threatUpdate(dt) {
       if (S.threat.whistlesSeen === 1) showHint('¡SILBIDO CASI MUDO! PULSA [U] YA', 2.2);
       // lantern already up when he arrives: it burns him (holding is a valid stance, same kero cost)
       if (held.P1_1 || held.P2_1) attemptLantern();
+      else if (S.dogCharges > 0) dogAutoRepel();   // companion dog takes the hit for you
     }
   } else {
     // near phase: act within the window or die. Terror climbs while he's close.
@@ -753,28 +753,20 @@ function attemptLantern() {
   }
 }
 
-/* Dogs of water: myth-true repellent. Carry max 2, release with [I]. */
-function releaseDogs() {
-  if (S.mode !== 'run' || S.dogs <= 0) return;
-  S.dogs--;
-  S.dogFx = { t: 0 };
+/* Dog companion: each pickup grants 3 charges; when he arrives, the dog drives him off alone. */
+function dogAutoRepel() {
+  S.dogCharges--;
   const th = S.threat;
-  if (th.near) {
-    th.near = false;
-    th.recoilT = 0.55;
-    th.farT = 0; th.whistled = false; th.echoDone = false;
-    th.farDur = farDurNow();
-    th.swoopDone = false;
-    S.fear = clamp(S.fear - 30, 0, 100);
-    S.repPts += 75;
-    popScore('+75 ¡JAURIA!', '#9fd8ff');
-    SFX.setRain(0.055, 0.6);
-  } else {
-    th.farDur += 2.2;   // spent early: the next silence takes longer to come
-    popScore('JAURIA SUELTA', '#9fd8ff');
-  }
+  th.near = false;
+  th.recoilT = 0.55;
+  th.farT = 0; th.whistled = false; th.echoDone = false;
+  th.farDur = farDurNow();
+  th.swoopDone = false;
+  S.fear = clamp(S.fear - 20, 0, 100);
+  S.repPts += 40;
+  popScore('+40 PERRO', '#9fd8ff');
+  S.dogFx = { t: 0, n: 1, bark: ['\u00a1GUAU!', '\u00a1GUAU GUAU!', '\u00a1JAU JAU!'][(Math.random() * 3) | 0] };   // the dog turns back and drives him off
   SFX.dogs();
-  showHint('¡LOS PERROS DE AGUA AHUYENTAN AL SILBON!', 2);
 }
 
 /* ---------------- Lightning: 100ms whiteout revealing his silhouette ----------- */
@@ -844,7 +836,7 @@ function obstUpdate(dt) {
     S.pickT -= dt;
     if (S.pickT <= 0) {
       S.pickT = R(2.1, 3.4) - 0.7 * diff;
-      if (S.dogs < 2 && Math.random() < 0.16) {
+      if (S.dogCharges < 6 && Math.random() < 0.2) {
         S.picks.push({ t: 'dog', x: W + R(90, 220), bob: R(0, 6.28) });
       } else {
         const isKero = S.kero < 25 || Math.random() < (S.kero < 40 ? 0.55 : 0.28);
@@ -881,7 +873,7 @@ function obstUpdate(dt) {
     const by = GY - 24 + Math.sin(k.bob) * 4;
     if (ov(pb.x, pb.y, pb.w, pb.h, k.x - 9, by - 14, 18, 20)) {
       if (k.t === 'bag') { S.bags++; S.bagPts += 100; SFX.pickup(); popScore('+100', '#ffd27a'); }
-      else if (k.t === 'dog') { S.dogs = Math.min(2, S.dogs + 1); SFX.pickup(); popScore('+PERRO', '#9fd8ff'); }
+      else if (k.t === 'dog') { S.dogCharges = Math.min(6, S.dogCharges + 3); SFX.pickup(); popScore('+PERRO x3', '#9fd8ff'); }
       else { S.kero = Math.min(100, S.kero + 34); SFX.kero(); popScore('+KEROSENE', '#e0a33b'); }
       S.picks.splice(i, 1);
     }
@@ -1196,7 +1188,7 @@ function buildTexts(sc) {
     T(W / 2, 214, '\u266A  USA AUDIFONOS \u00b7 ACTIVA EL AUDIO \u00b7 EL SILBIDO ES LA SENAL  \u266A', '13px', '#ffd27a', { fontStyle: 'bold' }).setOrigin(0.5),
     T(W / 2, 252, '"Si el silbido suena LEJOS... ya esta ENCIMA de ti."', '13px', '#b7a6e0').setOrigin(0.5),
     T(W / 2, 284, '[W/\u2191] Saltar   [S/\u2193] Agacharse   [D/\u2192] Acelerar   [A/\u2190] Frenar', '12px', '#cfc4a0').setOrigin(0.5),
-    T(W / 2, 305, '[U] Linterna   [I] Perros de agua   \u00b7   Sobrevive la noche y vera amanecer', '11px', '#8f86ad').setOrigin(0.5),
+    T(W / 2, 305, '[U] Linterna   \u00b7   Los perros de agua te escoltan y lo ahuyentan solos (3 salvas)', '11px', '#8f86ad').setOrigin(0.5),
     T(W / 2, 326, 'Cuatro fases de noche; al terminar AMANECER, gan\u00e1s.', '10px', '#8f86ad').setOrigin(0.5),
     T(W / 2, 430, 'PRESIONA ENTER / CLIC PARA CORRER', '16px', '#ffd27a', { fontStyle: 'bold' }).setOrigin(0.5),
     T(W / 2, 556, '100% PROCEDURAL \u00b7 0 ASSETS \u00b7 <50KB', '10px', '#6f6a86').setOrigin(0.5),
@@ -1212,7 +1204,8 @@ function buildTexts(sc) {
     sc.tState = T(W / 2, 10, '', '13px', '#9a86c8', { fontStyle: 'bold' }).setOrigin(0.5),
     sc.tLvl = T(W / 2, 44, '', '9px', '#8f86ad').setOrigin(0.5, 0),
     sc.tLvFx = T(W / 2, 236, '', '46px', '#e8d9b0', { fontStyle: 'bold' }).setOrigin(0.5).setVisible(false),
-    sc.tLvFx2 = T(W / 2, 284, '', '14px', '#9a86c8').setOrigin(0.5).setVisible(false)
+    sc.tLvFx2 = T(W / 2, 284, '', '14px', '#9a86c8').setOrigin(0.5).setVisible(false),
+    sc.tBark = T(0, 0, '', '15px', '#bfe8ff', { fontStyle: 'bold' }).setOrigin(0.5).setVisible(false)
   ];
   sc.hudT.forEach(o => o.setVisible(false));
   // floating score popups pool
@@ -1491,6 +1484,24 @@ function drawFearFx() {
   }
 }
 
+/* Water dog silhouette. dir: 1 faces forward, -1 faces backward (toward him). */
+function drawDog(g, x, y, a, phase, d) {
+  d = d || 1;
+  g.fillStyle(0x27404d, a);
+  g.fillEllipse(x, y, 24, 10);
+  g.fillCircle(x + 11 * d, y - 6, 4.5);
+  const mx = x + 13 * d;
+  g.fillRect(Math.min(mx, mx + 6 * d), y - 7, 6, 3);
+  g.fillTriangle(x + 8 * d, y - 10, x + 11 * d, y - 15, x + 14 * d, y - 9);
+  const lp = Math.sin(phase) * 2.5 * d;
+  g.fillRect(x - 8 + lp, y + 3, 3, 6);
+  g.fillRect(x + 2 - lp, y + 3, 3, 6);
+  g.lineStyle(3, 0x27404d, a);
+  g.lineBetween(x - 11 * d, y - 3, x - 17 * d, y - 11);
+  g.fillStyle(0x8fd0e8, a);
+  g.fillCircle(x + 12 * d, y - 7, 1.1);
+}
+
 function drawFx(dt) {
   const g = G.fxG;
   g.clear();
@@ -1531,30 +1542,30 @@ function drawFx(dt) {
       g.strokeCircle(W / 2, 250, 50 + lf.t * 240);
     }
   }
-  // dog pack released: water-dog silhouettes rushing left, myth-true rescue
+  // companion dog trotting at your heels while charges remain
+  if (S.mode === 'run' && S.dogCharges > 0) {
+    const hop = Math.abs(Math.sin(S.t * 7)) * 2;
+    drawDog(g, PX - 27, GY - 8 - hop, 0.95, S.t * 11);
+  }
+  // released dog dashing back at him: flipped, barking
   if (S.dogFx) {
     const df = S.dogFx;
     df.t += dt;
     const k = df.t / 1.4;
-    if (k >= 1) S.dogFx = null;
-    else {
+    if (k >= 1) {
+      S.dogFx = null;
+      scene.tBark.setVisible(false);
+    } else {
       const a = k < 0.15 ? k / 0.15 : k > 0.8 ? (1 - k) / 0.2 : 1;
       const x0 = PX + 30 - k * 320;
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < (df.n || 1); i++) {
         const dx = x0 + i * 26, dy = GY - 12 - i * 7 + Math.sin(df.t * 14 + i * 2) * 3;
-        g.fillStyle(0x27404d, 0.9 * a);
-        g.fillEllipse(dx, dy, 26, 11);
-        g.fillCircle(dx + 13, dy - 6, 5);
-        g.fillRect(dx + 15, dy - 6, 7, 3);
-        g.fillTriangle(dx + 11, dy - 11, dx + 14, dy - 17, dx + 17, dy - 10);
-        g.fillRect(dx - 9, dy + 4, 3, 6);
-        g.fillRect(dx + 1, dy + 4, 3, 6);
-        g.fillRect(dx + 8, dy + 3, 3, 6);
-        g.lineStyle(3, 0x27404d, 0.9 * a);
-        g.lineBetween(dx - 12, dy - 3, dx - 19, dy - 12);
-        g.fillStyle(0x8fd0e8, 0.9 * a);
-        g.fillCircle(dx + 14, dy - 7, 1.2);
+        drawDog(g, dx, dy, 0.9 * a, df.t * 16 + i * 2, -1);
       }
+      const bk = scene.tBark;
+      bk.setText(df.bark || '\u00a1GUAU!').setVisible(true).setAlpha(a);
+      bk.setPosition(x0 - 6, GY - 52 + Math.sin(df.t * 20) * 2);
+      bk.setAngle(-6 + Math.sin(df.t * 26) * 5);
     }
   }
 }
@@ -1603,16 +1614,10 @@ function drawHud(dt) {
   const kf = S.kero < 25 ? 0.45 + 0.55 * Math.abs(Math.sin(S.t * 8)) : 0.95;
   g.fillStyle(0xe0a33b, kf);
   g.fillRect(32, 32, 142 * clamp(S.kero / 100, 0, 1), 7);
-  // carried dogs pips
-  for (let i = 0; i < 2; i++) {
-    const px = 32 + i * 15;
-    g.lineStyle(1, 0x8fd0e8, 0.8);
-    g.strokeRect(px + 0.5, 44.5, 11, 8);
-    if (i < S.dogs) {
-      g.fillStyle(0x9fd8ff, 0.95);
-      g.fillRect(px + 2, 46, 7, 5);
-      g.fillRect(px + 3, 44, 2, 2);
-    }
+  // dog charge pips: each pickup = 3 charges, each auto-repel spends 1 (max 6)
+  for (let i = 0; i < 6; i++) {
+    g.fillStyle(i < S.dogCharges ? 0x9fd8ff : 0x151d28, 0.95);
+    g.fillRect(32 + i * 12, 46, 8, 4);
   }
   // Silbon state badge
   if (S.threat.near) {
