@@ -743,14 +743,14 @@ function releaseDogs() {
     th.near = false;
     th.recoilT = 0.55;
     th.farT = 0; th.whistled = false; th.echoDone = false;
-    th.farDur = R(4.2, 6) - clamp(S.dist / 3000, 0, 1) * 1.8;
+    th.farDur = farDurNow();
     th.swoopDone = false;
     S.fear = clamp(S.fear - 30, 0, 100);
     S.repPts += 75;
     popScore('+75 ¡JAURIA!', '#9fd8ff');
     SFX.setRain(0.055, 0.6);
   } else {
-    th.farDur = farDurNow();
+    th.farDur += 2.2;   // spent early: the next silence takes longer to come
     popScore('JAURIA SUELTA', '#9fd8ff');
   }
   SFX.dogs();
