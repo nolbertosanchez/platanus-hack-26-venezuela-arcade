@@ -96,10 +96,22 @@ const SFX = {
   now() { return this.ctx ? this.ctx.currentTime : 0; },
   setRain(v, t) { if (this.rainG) this.rainG.gain.linearRampToValueAtTime(v, this.now() + (t || 0.4)); },
   // The whistle: C5-E5-G5-C6. Far = loud and clear. Near = faint, muffled, human tremolo.
+  whistleVoices: [],
   whistle(near, volMul) {
     if (!this.ctx) return;
-    const t0 = this.now() + 0.02, seq = [523.25, 659.25, 783.99, 1046.5];
-    const step = near ? 0.34 : 0.17, vol = (near ? 0.05 : 0.5) * (volMul || 1);
+    // one signal at a time: a new whistle silences the previous one (30ms fade, click-free)
+    const nowT = this.ctx.currentTime;
+    for (const v of this.whistleVoices) {
+      try {
+        v.g.gain.cancelScheduledValues(nowT);
+        v.g.gain.setTargetAtTime(0.0001, nowT, 0.03);
+        v.o.stop(nowT + 0.12);
+        v.l.stop(nowT + 0.12);
+      } catch (e) {}
+    }
+    this.whistleVoices = [];
+    const t0 = nowT + 0.02, seq = [523.25, 659.25, 783.99, 1046.5];
+    const step = near ? 0.34 : 0.17, vol = (near ? 0.05 : 0.45) * (volMul || 1);
     for (let i = 0; i < 4; i++) {
       const t = t0 + i * step, dur = step * 0.94, base = near ? seq[i] * 0.92 : seq[i];
       const o = this.ctx.createOscillator(), g = this.ctx.createGain(),
@@ -118,6 +130,7 @@ const SFX = {
       o.connect(fl); fl.connect(g); g.connect(this.master);
       o.start(t); o.stop(t + dur + 0.05);
       lfo.start(t); lfo.stop(t + dur + 0.05);
+      this.whistleVoices.push({ o, l: lfo, g });
     }
   },
   // level-up / dawn: bright rising arpeggio, the night advances
