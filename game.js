@@ -425,7 +425,7 @@ function resetRun(toMenu) {
   S.mode = toMenu ? 'menu' : 'run';
   S.dist = 0; S.speed = 255; S.rph = 0; S.wx = 0; S.runT = 0;
   S.paralyses = 0; S.mudT = 0; S.thr = 0;
-  S.dogCharges = 0; S.dogFx = null; S.dogHint = false;
+  S.dogCharges = 0; S.dogFx = null; S.dogHint = false; S.swoopHold = 0;
   S.level = 0; S.night = 1; S.levelAt = 0; S.dawned = false; S.dawnT = 0;
   S.lvFx = null;
   S.speedHint = false;
@@ -648,6 +648,7 @@ function farDurNow() {
 function threatUpdate(dt) {
   const th = S.threat, diff = clamp(S.dist / 3000, 0, 1);
   if (th.recoilT > 0) th.recoilT -= dt;
+  if (S.swoopHold > 0) S.swoopHold -= dt;
 
   if (!th.near) {
     // myth pressure: braking invites him closer, running away pulls him back a bit
@@ -667,8 +668,10 @@ function threatUpdate(dt) {
       th.echoDone = true;
       SFX.whistle(false, 0.6);
     }
-    // charge attack (ground rush from behind, myth-true): jump to dodge
-    if (!th.swoop && !th.swoopDone && th.farT > 1.2 && th.farT < th.farDur - 1.6 && Math.random() < dt * 0.16) {
+    // charge attack (ground rush from behind, myth-true): jump to dodge.
+    // Never while a dog bonus is in play or just grabbed: the grab must be a safe moment.
+    if (!th.swoop && !th.swoopDone && th.farT > 1.2 && th.farT < th.farDur - 1.6
+        && !(S.swoopHold > 0) && !S.picks.some(k => k.t === 'dog') && Math.random() < dt * 0.16) {
       th.swoop = { x: -140, y: GY + 6, t: 0, resolved: false };
       th.swoopDone = true;
       SFX.gust();
@@ -878,7 +881,7 @@ function obstUpdate(dt) {
     const by = k.t === 'dog' ? GY - 88 + Math.sin(k.bob) * 4 : GY - 24 + Math.sin(k.bob) * 4;
     if (ov(pb.x, pb.y, pb.w, pb.h, k.x - 9, by - 14, 18, 20)) {
       if (k.t === 'bag') { S.bags++; S.bagPts += 100; SFX.pickup(); popScore('+100', '#ffd27a'); }
-      else if (k.t === 'dog') { S.dogCharges = Math.min(6, S.dogCharges + 3); SFX.pickup(); popScore('+PERRO x3', '#9fd8ff'); }
+      else if (k.t === 'dog') { S.dogCharges = Math.min(6, S.dogCharges + 3); S.swoopHold = 1.2; SFX.pickup(); popScore('+PERRO x3', '#9fd8ff'); }
       else { S.kero = Math.min(100, S.kero + 34); SFX.kero(); popScore('+KEROSENE', '#e0a33b'); }
       S.picks.splice(i, 1);
     }
