@@ -514,7 +514,7 @@ function runUpdate(dt) {
   // --- world scroll (throttle: accelerate for meters, brake to breathe) ---
   let mul = 1;
   if (S.slowT > 0) { S.slowT -= dt; mul = 0.55; }
-  mul *= S.thr > 0 ? 1.45 : S.thr < 0 ? 0.55 : 1;
+  mul *= S.thr > 0 ? 1.65 : S.thr < 0 ? 0.45 : 1;
   if (S.invT > 0) S.invT -= dt;
   const sp = S.speed * mul;
   S.wx += sp * dt;
@@ -904,15 +904,19 @@ function drawEnts() {
       g.fillCircle(k.x + 3, by + 2, 2.2);
       g.fillCircle(k.x + 1, by - 5, 1.8);
     } else if (k.t === 'dog') {
-      // water dog pickup: dark silhouette with a wet shine, bobbing
+      // water dog pickup: four legs, upheld tail, muzzle — unmistakably dog
       g.fillStyle(0x27404d, 1);
-      g.fillEllipse(k.x, by, 22, 12);
-      g.fillCircle(k.x + 8, by - 6, 5);
-      g.fillRect(k.x + 5, by - 13, 3, 6);
-      g.fillRect(k.x - 12, by - 3, 8, 2);
+      g.fillEllipse(k.x - 2, by - 5, 24, 11);
+      g.fillCircle(k.x + 11, by - 8, 4.5);
+      g.fillRect(k.x + 13, by - 9, 6, 3);
+      g.fillTriangle(k.x + 9, by - 12, k.x + 12, by - 17, k.x + 15, by - 11);
+      g.fillRect(k.x - 10, by - 1, 3, 6);
+      g.fillRect(k.x - 3, by - 1, 3, 6);
+      g.fillRect(k.x + 4, by - 1, 3, 6);
+      g.lineStyle(3, 0x27404d, 1);
+      g.lineBetween(k.x - 13, by - 7, k.x - 18, by - 15);
       g.fillStyle(0x8fd0e8, 1);
-      g.fillCircle(k.x + 9, by - 7, 1.2);
-      g.fillCircle(k.x, by - 11, 1.4);
+      g.fillCircle(k.x + 12, by - 9, 1.2);
     } else {
       g.fillStyle(0x7a4a22, 1);
       g.fillRect(k.x - 6, by - 12, 12, 20);
@@ -1477,6 +1481,15 @@ function drawFx(dt) {
     g.fillStyle(0x7a0505, 0.25 + 0.2 * Math.sin(S.t * 40));
     g.fillRect(0, 0, W, H);
   }
+  // acceleration wind streaks: make the throttle visible
+  if (S.mode === 'run' && S.thr > 0) {
+    g.lineStyle(2, 0xd8e8ff, 0.3);
+    for (let i = 0; i < 8; i++) {
+      const ly = 40 + ((i * 89 + (S.t * 730 + i * 137) | 0) % 440);
+      const lx = W - ((S.t * 1500 + i * 211) % (W + 140));
+      g.lineBetween(lx, ly, lx + 90, ly);
+    }
+  }
   // dog pack released: water-dog silhouettes rushing left, myth-true rescue
   if (S.dogFx) {
     const df = S.dogFx;
@@ -1490,11 +1503,16 @@ function drawFx(dt) {
         const dx = x0 + i * 26, dy = GY - 12 - i * 7 + Math.sin(df.t * 14 + i * 2) * 3;
         g.fillStyle(0x27404d, 0.9 * a);
         g.fillEllipse(dx, dy, 26, 11);
-        g.fillCircle(dx + 12, dy - 6, 5);
-        g.fillRect(dx + 9, dy - 13, 3, 6);
-        g.fillRect(dx - 14, dy - 4, 8, 2);
+        g.fillCircle(dx + 13, dy - 6, 5);
+        g.fillRect(dx + 15, dy - 6, 7, 3);
+        g.fillTriangle(dx + 11, dy - 11, dx + 14, dy - 17, dx + 17, dy - 10);
+        g.fillRect(dx - 9, dy + 4, 3, 6);
+        g.fillRect(dx + 1, dy + 4, 3, 6);
+        g.fillRect(dx + 8, dy + 3, 3, 6);
+        g.lineStyle(3, 0x27404d, 0.9 * a);
+        g.lineBetween(dx - 12, dy - 3, dx - 19, dy - 12);
         g.fillStyle(0x8fd0e8, 0.9 * a);
-        g.fillCircle(dx + 13, dy - 7, 1.1);
+        g.fillCircle(dx + 14, dy - 7, 1.2);
       }
     }
   }
@@ -1586,7 +1604,8 @@ function drawHud(dt) {
   if (S.hudT <= 0) {
     S.hudT = 0.1;
     scene.tScore.setText('PUNTOS ' + scoreTotal());
-    scene.tBags.setText('BOLSAS x' + S.bags + ' · ' + Math.floor(S.dist) + ' m');
+    scene.tBags.setText((S.thr > 0 ? '\u00bb ACELERANDO \u00b7 ' : S.thr < 0 ? '\u00b7 FRENANDO \u00b7 ' : '') +
+      'BOLSAS x' + S.bags + ' \u00b7 ' + Math.floor(S.dist) + ' m');
     scene.tHint.setText(S.hint.t > 0 ? S.hint.msg : '');
     scene.tLvl.setText('NOCHE ' + (NIGHT_NAMES[S.night - 1] || S.night) + ' · ' + LEVELS[S.level].name +
       (S.mode === 'dawn' ? ' · AMANECIENDO' : ''));
