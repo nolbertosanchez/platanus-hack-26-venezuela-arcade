@@ -120,6 +120,22 @@ const SFX = {
       lfo.start(t); lfo.stop(t + dur + 0.05);
     }
   },
+  // level-up / dawn: bright rising arpeggio, the night advances
+  levelUp() {
+    if (!this.ctx) return;
+    const t0 = this.now() + 0.02, seq = [392, 523.25, 659.25, 783.99];
+    for (let i = 0; i < 4; i++) {
+      const t = t0 + i * 0.09;
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(seq[i], t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.16, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+      o.connect(g); g.connect(this.master);
+      o.start(t); o.stop(t + 0.25);
+    }
+  },
   // released pack: three barks, sawtooth chirps through a bandpass
   dogs() {
     if (!this.ctx) return;
@@ -372,6 +388,7 @@ class Main extends Phaser.Scene {
     if (S.mode === 'menu') menuUpdate(dt);
     else if (S.mode === 'run') runUpdate(dt);
     else if (S.mode === 'paralyzed') paralyzedUpdate(dt);
+    else if (S.mode === 'dawn') dawnUpdate(dt);
     else if (S.mode === 'dying') dyingUpdate(dt);
     else overUpdate(dt);
 
@@ -429,6 +446,7 @@ function gameOver() {
   if (sc > best) saveBest(sc);
   scene.tOver1.setText('EL SILBON TE ALCANZO');
   scene.tOver2.setText('PUNTOS ' + sc + '   ·   ' + Math.floor(S.dist) + ' m   ·   BOLSAS x' + S.bags +
+    '   ·   NOCHE ' + (NIGHT_NAMES[S.night - 1] || S.night) +
     (S.paralyses ? '   ·   MIEDO x' + S.paralyses : ''));
   scene.tOver3.setText('MEJOR: ' + best);
   scene.hudT.forEach(o => o.setVisible(false));
@@ -466,7 +484,7 @@ function runUpdate(dt) {
   const p = S.player;
   S.runT += dt;
   const diff = clamp(S.dist / 3000, 0, 1);
-  S.speed = 255 + 185 * diff;
+  S.speed = (255 + 185 * diff) * (1 + 0.15 * (S.night - 1));
 
   // --- arcade input: throttle / jump / duck / fast-fall ---
   S.thr = (held.P1_R || held.P2_R) ? 1 : (held.P1_L || held.P2_L) ? -1 : 0;
@@ -521,6 +539,7 @@ function runUpdate(dt) {
   if (S.kero < 100 && !S.threat.near) S.kero = Math.min(100, S.kero + 3.5 * dt);
   if (!S.threat.near && S.fear > 0) S.fear = Math.max(0, S.fear - 3 * dt);
 
+  levelUpdate(dt);
   threatUpdate(dt);   // the inverted whistle cycle
   lightningUpdate(dt);
   obstUpdate(dt);
@@ -549,7 +568,66 @@ function dyingUpdate(dt) {
 
 function overUpdate(dt) { S.rph += dt; }
 
+/* ---------------- Night progression: levels, dawn, next night ------------------- */
+function levelUpdate(dt) {
+  if (S.mode !== 'run') return;
+  const li = LEVELS.length - 1;
+  const rel = S.dist - S.levelAt;
+  if (S.level < li) {
+    if (rel >= LEVELS[S.level + 1].at) {
+      S.level++;
+      SFX.levelUp();
+      showHint('\u00b7 ' + LEVELS[S.level].name + ' \u00b7', 2.4);
+    }
+  } else if (rel >= NIGHT_LEN && !S.dawned) {
+    dawnStart();
+  }
+}
+
+function dawnStart() {
+  S.dawned = true;
+  S.dawnT = 0;
+  S.mode = 'dawn';
+  S.thr = 0;
+  S.dogFx = null;
+  S.repPts += 2000;
+  S.threat.near = false;
+  S.threat.swoop = null;
+  SFX.droneOff();
+  SFX.levelUp();
+  SFX.setRain(0.02, 1.2);
+  showHint('¡AMANECIO! +2000', 4);
+}
+
+function dawnUpdate(dt) {
+  S.dawnT += dt;
+  S.fear = Math.max(0, S.fear - 30 * dt);
+  const sp = S.speed * 0.35;
+  S.wx += sp * dt;
+  S.dist += sp * dt / 10;
+  G.ground.tilePositionX += sp * dt;
+  scrollLayer(G.palmFar, sp * 0.16 * dt, 260, 460, 0.55);
+  scrollLayer(G.palmNear, sp * 0.30 * dt, 240, 430, 1);
+  scrollLayer(G.shrubs, sp * 0.55 * dt, 200, 380, 0.85);
+  for (const o of S.obst) o.x -= sp * dt * (o.t === 'gust' ? 1.7 : 1);
+  for (const k of S.picks) { k.x -= sp * dt; k.bob += dt * 3; }
+  if (S.dawnT > 4.4) {
+    S.night++;
+    S.level = 0;
+    S.levelAt = S.dist;
+    S.dawned = false;
+    S.mode = 'run';
+    S.kero = Math.min(100, S.kero + 40);
+    SFX.setRain(0.055, 0.8);
+    showHint('NOCHE ' + (NIGHT_NAMES[S.night - 1] || S.night) + ' \u00b7 MAS RAPIDA Y MAS CERCA', 3);
+  }
+}
+
 /* ---------------- Threat AI: the inverted whistle cycle ------------------------ */
+function farDurNow() {
+  // silence window: shrinks per level and with distance
+  return R(4.2, 6) * LEVELS[S.level].dur - clamp(S.dist / 3000, 0, 1) * 1.8;
+}
 function threatUpdate(dt) {
   const th = S.threat, diff = clamp(S.dist / 3000, 0, 1);
   if (th.recoilT > 0) th.recoilT -= dt;
@@ -603,7 +681,7 @@ function threatUpdate(dt) {
     // far phase ends -> he is RIGHT BEHIND YOU
     if (th.farT >= th.farDur) {
       th.near = true;
-      th.winMax = 1.15 - 0.43 * diff;
+      th.winMax = 1.15 - 0.43 * diff - 0.06 * S.level;
       th.winT = th.winMax;
       th.swoop = null;
       SFX.whistle(true);
@@ -636,9 +714,9 @@ function attemptLantern() {
       th.near = false;
       th.recoilT = 0.55;
       th.farT = 0; th.whistled = false; th.echoDone = false;
-      th.farDur = R(4.2, 6) - clamp(S.dist / 3000, 0, 1) * 1.8;
-      th.swoopDone = false;
-      S.fear = clamp(S.fear - 20, 0, 100);
+    th.farDur = farDurNow();
+    th.swoopDone = false;
+    S.fear = clamp(S.fear - 20, 0, 100);
       S.repPts += 50;
       popScore('+50', '#ff9a6a');
       SFX.lantern();
@@ -672,7 +750,7 @@ function releaseDogs() {
     popScore('+75 ¡JAURIA!', '#9fd8ff');
     SFX.setRain(0.055, 0.6);
   } else {
-    th.farDur += 2.2;   // spent early: the next silence takes longer to come
+    th.farDur = farDurNow();
     popScore('JAURIA SUELTA', '#9fd8ff');
   }
   SFX.dogs();
@@ -721,7 +799,7 @@ function triggerParalysis() {
   const th = S.threat;
   if (th.near) { th.near = false; th.recoilT = 0.55; SFX.setRain(0.055, 0.6); }
   th.farT = 0; th.whistled = false; th.echoDone = false; th.swoopDone = false;
-  th.farDur = R(4.2, 6) - clamp(S.dist / 3000, 0, 1) * 1.8;
+  th.farDur = farDurNow();
   SFX.droneOn();
   scene.cameras.main.shake(300, 0.006);
 }
@@ -735,7 +813,7 @@ function obstUpdate(dt) {
 
   // spawns only while he is far
   if (!S.threat.near) {
-    S.spawnT -= dt * (0.85 + 0.5 * diff);
+    S.spawnT -= dt * (0.85 + 0.5 * diff) * LEVELS[S.level].spawn;
     if (S.spawnT <= 0) {
       S.spawnT = R(1.25, 1.9) - 0.6 * diff;
       const r = Math.random();
@@ -1106,7 +1184,8 @@ function buildTexts(sc) {
     sc.tL1 = T(32, 2, 'MIEDO', '8px', '#9a8fb0'),
     sc.tL2 = T(32, 22, 'KEROSENE', '8px', '#9a8fb0'),
     sc.tHint = T(W / 2, 564, '', '11px', '#ffd9a0').setOrigin(0.5),
-    sc.tState = T(W / 2, 10, '', '13px', '#9a86c8', { fontStyle: 'bold' }).setOrigin(0.5)
+    sc.tState = T(W / 2, 10, '', '13px', '#9a86c8', { fontStyle: 'bold' }).setOrigin(0.5),
+    sc.tLvl = T(W / 2, 44, '', '9px', '#8f86ad').setOrigin(0.5, 0)
   ];
   sc.hudT.forEach(o => o.setVisible(false));
   // floating score popups pool
@@ -1132,6 +1211,21 @@ function drawWorld(dt) {
     const a = 0.2 + 0.75 * Math.abs(Math.sin(t * st.sp + st.ph));
     g.fillStyle(0xd8d4ee, a * 0.9);
     g.fillRect(st.x, st.y, st.r, st.r);
+  }
+
+  // sky: night deepens per level; dawn warms everything up
+  const SKY = [
+    null,
+    { c: 0x0b0618, a: 0.30 },
+    { c: 0x150a26, a: 0.40 },
+    { c: 0x3a1408, a: 0.42 }
+  ];
+  const sk = S.mode === 'dawn'
+    ? { c: 0xd88a50, a: 0.10 + 0.18 * Math.min(1, S.dawnT / 3) }
+    : SKY[S.level];
+  if (sk) {
+    g.fillStyle(sk.c, sk.a);
+    g.fillRect(0, 0, W, H);
   }
 
   // Rain: diagonal lines, variable alpha, wind slant
@@ -1472,6 +1566,21 @@ function drawHud(dt) {
     scene.tState.setText('SILBON LEJOS').setColor('#6f6a86');
   }
 
+  // night progress bar: current level span, moon pip on the left
+  const li = LEVELS.length - 1;
+  const lvA = LEVELS[S.level].at;
+  const lvB = S.level < li ? LEVELS[S.level + 1].at : NIGHT_LEN;
+  const prog = S.mode === 'dawn' ? 1 : clamp((S.dist - S.levelAt - lvA) / (lvB - lvA), 0, 1);
+  const bw = 220, bx = W / 2 - bw / 2;
+  g.fillStyle(0x000000, 0.45);
+  g.fillRect(bx, 33, bw, 7);
+  g.lineStyle(1, 0x8a7fa8, 0.7);
+  g.strokeRect(bx + 0.5, 33.5, bw - 1, 6);
+  g.fillStyle(S.mode === 'dawn' ? 0xffc46a : 0x9a86c8, 0.95);
+  g.fillRect(bx + 2, 35, (bw - 4) * prog, 4);
+  g.fillStyle(0xd8d4ee, 0.9);
+  g.fillCircle(bx - 8, 36.5, 3.2);
+
   // throttled texts
   S.hudT -= dt;
   if (S.hudT <= 0) {
@@ -1479,6 +1588,8 @@ function drawHud(dt) {
     scene.tScore.setText('PUNTOS ' + scoreTotal());
     scene.tBags.setText('BOLSAS x' + S.bags + ' · ' + Math.floor(S.dist) + ' m');
     scene.tHint.setText(S.hint.t > 0 ? S.hint.msg : '');
+    scene.tLvl.setText('NOCHE ' + (NIGHT_NAMES[S.night - 1] || S.night) + ' · ' + LEVELS[S.level].name +
+      (S.mode === 'dawn' ? ' · AMANECIENDO' : ''));
   }
 }
 
